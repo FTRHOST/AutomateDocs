@@ -4,22 +4,24 @@ import path from "path";
 import admin from "firebase-admin";
 
 // Initialize Firebase Admin with Service Account from Env
-// NOTE: In production, the private key might need newline fix: .replace(/\\n/g, '\n')
 const privateKey = process.env.FIREBASE_PRIVATE_KEY;
 
 if (privateKey) {
   try {
+    const formattedKey = privateKey.replace(/\\n/g, '\n');
     admin.initializeApp({
       credential: admin.credential.cert({
         projectId: process.env.FIREBASE_PROJECT_ID,
         clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-        privateKey: privateKey.replace(/\\n/g, '\n'),
+        privateKey: formattedKey,
       }),
     });
     console.log("Firebase Admin initialized successfully.");
   } catch (error) {
     console.error("Firebase Admin initialization failed:", error);
   }
+} else {
+  console.warn("FIREBASE_PRIVATE_KEY is not defined. Firebase features will not work.");
 }
 
 const db = admin.apps.length ? admin.firestore() : null;
@@ -30,6 +32,11 @@ async function startServer() {
 
   app.use(express.json());
 
+  // Health check
+  app.get("/api/health", (req, res) => {
+    res.json({ status: "ok", firebase: !!db });
+  });
+
   // --- API Routes ---
 
   app.get("/api/templates", async (req, res) => {
@@ -38,8 +45,9 @@ async function startServer() {
       const snapshot = await db.collection('templates').get();
       const templates = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       res.json(templates);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch templates" });
+    } catch (error: any) {
+      console.error("Error fetching templates:", error);
+      res.status(500).json({ error: "Failed to fetch templates", details: error.message });
     }
   });
 
