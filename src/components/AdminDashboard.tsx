@@ -83,7 +83,7 @@ export default function AdminDashboard() {
     if (!confirm('Yakin ingin menghapus template ini?')) return;
     setLoading(true);
     try {
-      await fetch(`/api/templates/${id}`, { method: 'DELETE' });
+      await fetch(`/api/templates/${encodeURIComponent(id)}`, { method: 'DELETE' });
       fetchTemplates();
     } catch (error) {
       console.error("Error deleting template:", error);
