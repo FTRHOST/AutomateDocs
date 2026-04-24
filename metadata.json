@@ -1,0 +1,6 @@
+{
+  "name": "DocuFlow - Automated Document Generator",
+  "description": "Automate document creation from Google Docs templates. Fill forms, replace placeholders, and generate PDFs with one click.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}

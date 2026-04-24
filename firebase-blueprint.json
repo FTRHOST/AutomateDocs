@@ -1,0 +1,57 @@
+{
+  "entities": {
+    "Template": {
+      "title": "Template",
+      "description": "Configuration for a Google Doc template",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Google Doc ID" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "fields": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "placeholder": { "type": "string" },
+              "label": { "type": "string" },
+              "type": { "type": "string", "enum": ["text", "date", "number"] }
+            },
+            "required": ["placeholder", "label", "type"]
+          }
+        },
+        "createdBy": { "type": "string", "description": "User UID who created the template" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["id", "name", "fields", "createdBy", "createdAt"]
+    },
+    "Record": {
+      "title": "Automation Record",
+      "description": "Log of a document automation process",
+      "type": "object",
+      "properties": {
+        "templateId": { "type": "string" },
+        "templateName": { "type": "string" },
+        "data": { "type": "object" },
+        "status": { "type": "string", "enum": ["pending", "success", "failed"] },
+        "pdfId": { "type": "string" },
+        "pdfLink": { "type": "string" },
+        "errorMessage": { "type": "string" },
+        "createdAt": { "type": "number" },
+        "userEmail": { "type": "string" },
+        "userId": { "type": "string" }
+      },
+      "required": ["templateId", "templateName", "data", "status", "createdAt", "userEmail", "userId"]
+    }
+  },
+  "firestore": {
+    "/templates/{templateId}": {
+      "schema": "Template",
+      "description": "Collection of document templates"
+    },
+    "/records/{recordId}": {
+      "schema": "Record",
+      "description": "Collection of automation logs"
+    }
+  }
+}
