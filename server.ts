@@ -31,7 +31,7 @@ const db = admin.apps.length ? admin.firestore() : null;
 
 // Instance aplikasi di-assign secara global
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
 app.use(express.json());
 
