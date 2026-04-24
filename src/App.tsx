@@ -14,18 +14,9 @@ import AdminDashboard from './components/AdminDashboard';
 import UserForm from './components/UserForm';
 import History from './components/History';
 
-import { ensureAuth } from './services/firebase';
-
 export default function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    ensureAuth()
-      .then(() => setIsAuthenticated(true))
-      .catch(err => console.error("Auth failed:", err))
-      .finally(() => setLoading(false));
-  }, []);
+  const [isAuthenticated, setIsAuthenticated] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   const handleLogout = () => {
     logout();

@@ -3,16 +3,6 @@ import { Plus, Trash2, FileEdit, ExternalLink, Save, FileText, Loader2, Settings
 import { motion } from 'motion/react';
 import { TemplateConfig, FieldMapping } from '../types';
 import { cn } from '../lib/utils';
-import { db, auth, handleFirestoreError } from '../services/firebase';
-import { 
-  collection, 
-  query, 
-  onSnapshot, 
-  setDoc, 
-  doc, 
-  deleteDoc, 
-  serverTimestamp 
-} from 'firebase/firestore';
 
 export default function AdminDashboard() {
   const [templates, setTemplates] = useState<TemplateConfig[]>([]);
@@ -28,18 +18,21 @@ export default function AdminDashboard() {
     fields: [{ placeholder: '', label: '', type: 'text' }]
   });
 
-  useEffect(() => {
-    const q = query(collection(db, 'templates'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const docs = snapshot.docs.map(doc => doc.data() as TemplateConfig);
-      setTemplates(docs);
+  const fetchTemplates = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/templates');
+      const data = await res.json();
+      setTemplates(data);
+    } catch (err) {
+      console.error("Failed to fetch templates:", err);
+    } finally {
       setLoading(false);
-    }, (error) => {
-      console.error("Error fetching templates:", error);
-      setLoading(false);
-    });
+    }
+  };
 
-    return () => unsubscribe();
+  useEffect(() => {
+    fetchTemplates();
   }, []);
 
   const handleLogin = (e: React.FormEvent) => {
@@ -58,26 +51,29 @@ export default function AdminDashboard() {
   };
 
   const handleAddTemplate = async () => {
-    if (!newTemplate.id || !newTemplate.name || !auth.currentUser) return;
+    if (!newTemplate.id || !newTemplate.name) return;
     
     setLoading(true);
     try {
-      await setDoc(doc(db, 'templates', newTemplate.id), {
-        ...newTemplate,
-        createdBy: auth.currentUser.uid,
-        createdAt: editingId ? (templates.find(t => t.id === editingId)?.createdAt || serverTimestamp()) : serverTimestamp(),
+      const res = await fetch('/api/templates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newTemplate)
       });
-
-      setIsAdding(false);
-      setEditingId(null);
-      setNewTemplate({
-        id: '',
-        name: '',
-        description: '',
-        fields: [{ placeholder: '', label: '', type: 'text' }]
-      });
+      
+      if (res.ok) {
+        setIsAdding(false);
+        setEditingId(null);
+        setNewTemplate({
+          id: '',
+          name: '',
+          description: '',
+          fields: [{ placeholder: '', label: '', type: 'text' }]
+        });
+        fetchTemplates();
+      }
     } catch (error) {
-      handleFirestoreError(error, 'create', `templates/${newTemplate.id}`);
+      console.error("Error saving template:", error);
     } finally {
       setLoading(false);
     }
@@ -87,9 +83,10 @@ export default function AdminDashboard() {
     if (!confirm('Yakin ingin menghapus template ini?')) return;
     setLoading(true);
     try {
-      await deleteDoc(doc(db, 'templates', id));
+      await fetch(`/api/templates/${encodeURIComponent(id)}`, { method: 'DELETE' });
+      fetchTemplates();
     } catch (error) {
-      handleFirestoreError(error, 'delete', `templates/${id}`);
+      console.error("Error deleting template:", error);
     } finally {
       setLoading(false);
     }

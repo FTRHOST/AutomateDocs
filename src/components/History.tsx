@@ -1,6 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { db, auth } from '../services/firebase';
-import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
 import { AutomationRecord } from '../types';
 import { FileText, CheckCircle2, XCircle, ExternalLink, Clock, Loader2 } from 'lucide-react';
 import { formatDate } from '../lib/utils';
@@ -10,32 +8,19 @@ export default function History() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!auth.currentUser) return;
+    const fetchRecords = async () => {
+      try {
+        const res = await fetch('/api/records');
+        const data = await res.json();
+        setRecords(data);
+      } catch (err) {
+        console.error("Error fetching history:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-    const q = query(
-      collection(db, 'records'),
-      where('userId', '==', auth.currentUser.uid),
-      orderBy('createdAt', 'desc')
-    );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const docs = snapshot.docs.map(doc => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          ...data,
-          // Convert Firestore Timestamp to number for types
-          createdAt: data.createdAt?.toMillis() || Date.now()
-        } as AutomationRecord;
-      });
-      setRecords(docs);
-      setLoading(false);
-    }, (error) => {
-      console.error("Error fetching history:", error);
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
+    fetchRecords();
   }, []);
 
   if (loading) {
