@@ -5,6 +5,14 @@ import { TemplateConfig } from '../types';
 import { getAccessToken } from '../services/googleAuth';
 import { copyFile, replacePlaceholders, convertToPdf, uploadToDrive, deleteFile, sendEmailWithLink } from '../services/docService';
 import { cn } from '../lib/utils';
+import { db, auth, handleFirestoreError } from '../services/firebase';
+import { 
+  collection, 
+  query, 
+  onSnapshot, 
+  addDoc, 
+  serverTimestamp 
+} from 'firebase/firestore';
 
 export default function UserForm() {
   const [templates, setTemplates] = useState<TemplateConfig[]>([]);
@@ -17,19 +25,17 @@ export default function UserForm() {
   const [loadingTemplates, setLoadingTemplates] = useState(true);
 
   useEffect(() => {
-    const fetchTemplates = async () => {
-      try {
-        const res = await fetch('/api/templates');
-        const data = await res.json();
-        setTemplates(data);
-      } catch (err) {
-        console.error("Error fetching templates:", err);
-      } finally {
-        setLoadingTemplates(false);
-      }
-    };
+    const q = query(collection(db, 'templates'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const docs = snapshot.docs.map(doc => doc.data() as TemplateConfig);
+      setTemplates(docs);
+      setLoadingTemplates(false);
+    }, (err) => {
+      console.error("Error fetching templates:", err);
+      setLoadingTemplates(false);
+    });
 
-    fetchTemplates();
+    return () => unsubscribe();
   }, []);
 
   const handleSelectTemplate = (template: TemplateConfig) => {
@@ -73,37 +79,37 @@ export default function UserForm() {
       setCurrentStep('Selesai!');
       setResult({ link: driveFile.webViewLink, emailSent: false });
       
-      // Log to Internal API
-      await fetch('/api/records', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      // Log to Firestore
+      if (auth.currentUser) {
+        await addDoc(collection(db, 'records'), {
           templateId: selectedTemplate.id,
           templateName: selectedTemplate.name,
           data: formData,
           status: 'success',
           pdfId: driveFile.id,
           pdfLink: driveFile.webViewLink,
-        })
-      });
+          createdAt: serverTimestamp(),
+          userEmail: auth.currentUser.email || 'anonymous',
+          userId: auth.currentUser.uid
+        });
+      }
 
     } catch (err: any) {
       console.error(err);
       setError(err.message || 'Terjadi kesalahan saat memproses dokumen.');
       if (tempFileId) await deleteFile(tempFileId, await getAccessToken()).catch(() => {});
       
-      // Log failure to Internal API
-      if (selectedTemplate) {
-        await fetch('/api/records', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            templateId: selectedTemplate.id,
-            templateName: selectedTemplate.name,
-            data: formData,
-            status: 'failed',
-            errorMessage: err.message,
-          })
+      // Log failure to Firestore
+      if (auth.currentUser && selectedTemplate) {
+        await addDoc(collection(db, 'records'), {
+          templateId: selectedTemplate.id,
+          templateName: selectedTemplate.name,
+          data: formData,
+          status: 'failed',
+          errorMessage: err.message,
+          createdAt: serverTimestamp(),
+          userEmail: auth.currentUser.email || 'anonymous',
+          userId: auth.currentUser.uid
         }).catch(e => console.error("Failed to log error record", e));
       }
     } finally {

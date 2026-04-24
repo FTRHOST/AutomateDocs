@@ -3,6 +3,16 @@ import { Plus, Trash2, FileEdit, ExternalLink, Save, FileText, Loader2, Settings
 import { motion } from 'motion/react';
 import { TemplateConfig, FieldMapping } from '../types';
 import { cn } from '../lib/utils';
+import { db, auth, handleFirestoreError } from '../services/firebase';
+import { 
+  collection, 
+  query, 
+  onSnapshot, 
+  setDoc, 
+  doc, 
+  deleteDoc, 
+  serverTimestamp 
+} from 'firebase/firestore';
 
 export default function AdminDashboard() {
   const [templates, setTemplates] = useState<TemplateConfig[]>([]);
@@ -18,21 +28,18 @@ export default function AdminDashboard() {
     fields: [{ placeholder: '', label: '', type: 'text' }]
   });
 
-  const fetchTemplates = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch('/api/templates');
-      const data = await res.json();
-      setTemplates(data);
-    } catch (err) {
-      console.error("Failed to fetch templates:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchTemplates();
+    const q = query(collection(db, 'templates'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const docs = snapshot.docs.map(doc => doc.data() as TemplateConfig);
+      setTemplates(docs);
+      setLoading(false);
+    }, (error) => {
+      console.error("Error fetching templates:", error);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
   }, []);
 
   const handleLogin = (e: React.FormEvent) => {
@@ -51,29 +58,26 @@ export default function AdminDashboard() {
   };
 
   const handleAddTemplate = async () => {
-    if (!newTemplate.id || !newTemplate.name) return;
+    if (!newTemplate.id || !newTemplate.name || !auth.currentUser) return;
     
     setLoading(true);
     try {
-      const res = await fetch('/api/templates', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newTemplate)
+      await setDoc(doc(db, 'templates', newTemplate.id), {
+        ...newTemplate,
+        createdBy: auth.currentUser.uid,
+        createdAt: editingId ? (templates.find(t => t.id === editingId)?.createdAt || serverTimestamp()) : serverTimestamp(),
       });
-      
-      if (res.ok) {
-        setIsAdding(false);
-        setEditingId(null);
-        setNewTemplate({
-          id: '',
-          name: '',
-          description: '',
-          fields: [{ placeholder: '', label: '', type: 'text' }]
-        });
-        fetchTemplates();
-      }
+
+      setIsAdding(false);
+      setEditingId(null);
+      setNewTemplate({
+        id: '',
+        name: '',
+        description: '',
+        fields: [{ placeholder: '', label: '', type: 'text' }]
+      });
     } catch (error) {
-      console.error("Error saving template:", error);
+      handleFirestoreError(error, 'create', `templates/${newTemplate.id}`);
     } finally {
       setLoading(false);
     }
@@ -83,10 +87,10 @@ export default function AdminDashboard() {
     if (!confirm('Yakin ingin menghapus template ini?')) return;
     setLoading(true);
     try {
-      await fetch(`/api/templates/${encodeURIComponent(id)}`, { method: 'DELETE' });
-      fetchTemplates();
+      await deleteDoc(doc(db, 'templates', id));
     } catch (error) {
-      console.error("Error deleting template:", error);
+      handleFirestoreError(error, 'delete', `templates/${id}`);
+    } finally {
       setLoading(false);
     }
   };
@@ -110,6 +114,33 @@ export default function AdminDashboard() {
       fields: newTemplate.fields.filter((_, i) => i !== index)
     });
   };
+
+  if (!isAuthorized) {
+    return (
+      <div className="max-w-md mx-auto mt-20 p-8 bg-white rounded-2xl border border-gray-200 shadow-xl text-center space-y-6">
+        <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto">
+          <Settings className="w-8 h-8 text-blue-600" />
+        </div>
+        <div>
+          <h2 className="text-2xl font-bold">Akses Admin</h2>
+          <p className="text-gray-500">Masukkan kata sandi untuk melanjutkan.</p>
+        </div>
+        <form onSubmit={handleLogin} className="space-y-4">
+          <input
+            type="password"
+            autoFocus
+            className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+            placeholder="Kata sandi..."
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+          <button className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition-all">
+            Masuk
+          </button>
+        </form>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
