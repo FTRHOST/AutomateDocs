@@ -1,5 +1,4 @@
 import express from "express";
-import { createServer as createViteServer } from "vite";
 import path from "path";
 import admin from "firebase-admin";
 
@@ -114,6 +113,7 @@ app.post("/api/records", async (req, res) => {
 // Hanya jalankan Vite dan listen secara lokal, cegah agar Vercel tidak mengeksekusinya
 if (process.env.NODE_ENV !== "production" && !process.env.VERCEL) {
   async function startDevServer() {
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
